@@ -32,7 +32,9 @@ void setup() {
   Serial.println("Debug output initialized on PA9");
 
   // Инициализация библиотеки энергосбережения
-  // LowPower.begin();
+  LowPower.begin();
+  // Настройка пробуждения по прерыванию на DIO0 (RISING)
+  LowPower.attachInterruptWakeup(LORA_DIO0, NULL, RISING, DEEP_SLEEP_MODE);
 
 #ifdef ENABLE_I2C_SCANNER
   Wire2.begin();
@@ -100,14 +102,19 @@ void setup() {
 }
 
 void loop() {
-if (digitalRead(LORA_DIO0) == HIGH) {
+  // Уходим в сон до прерывания на DIO0
+  Serial.flush();
+  digitalWrite(LED_PIN, LOW);
+  LowPower.deepSleep(60000); //to have chance to flash # while true; do st-flash erase && break ; done
+  digitalWrite(LED_PIN, HIGH);
+
+  if (digitalRead(LORA_DIO0) == HIGH) {
     size_t len = radio.getPacketLength();
     uint8_t buffer[256]; // Буфер для пакета
 
     int state = radio.readData(buffer, len);
 
     if (state == RADIOLIB_ERR_NONE) {
-        digitalWrite(LED_PIN, HIGH);
         Serial.println(F("\n--- [Meshtastic Packet Insight] ---"));
 
         if (len >= 16) {
@@ -151,9 +158,8 @@ if (digitalRead(LORA_DIO0) == HIGH) {
 
         Serial.print(F("RSSI/SNR:    ")); Serial.print(radio.getRSSI()); 
         Serial.print(F(" / ")); Serial.println(radio.getSNR());
-        digitalWrite(LED_PIN, LOW);
     }
     
     radio.startReceive();
-}
+  }
 }
