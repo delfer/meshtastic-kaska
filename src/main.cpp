@@ -4,10 +4,15 @@
 #include <RadioLib.h>
 
 // #define ENABLE_I2C_SCANNER
+#define ENABLE_PACKET_DEBUG
 
 #ifdef ENABLE_I2C_SCANNER
 #include "i2c_scanner.h"
 TwoWire Wire2(PB14, PB13); // SDA, SCL
+#endif
+
+#ifdef ENABLE_PACKET_DEBUG
+#include "packet_debug.h"
 #endif
 
 #define LED_PIN PA15
@@ -106,58 +111,18 @@ void loop() {
   Serial.flush();
   digitalWrite(LED_PIN, LOW);
   LowPower.deepSleep(60000); //to have chance to flash # while true; do st-flash erase && break ; done
-  digitalWrite(LED_PIN, HIGH);
 
   if (digitalRead(LORA_DIO0) == HIGH) {
+    digitalWrite(LED_PIN, HIGH);
     size_t len = radio.getPacketLength();
     uint8_t buffer[256]; // Буфер для пакета
 
     int state = radio.readData(buffer, len);
 
     if (state == RADIOLIB_ERR_NONE) {
-        Serial.println(F("\n--- [Meshtastic Packet Insight] ---"));
-
-        if (len >= 16) {
-            // Базовые ID (уже знакомы)
-            uint32_t dest   = (uint32_t)buffer[0] | (uint32_t)buffer[1] << 8 | (uint32_t)buffer[2] << 16 | (uint32_t)buffer[3] << 24;
-            uint32_t sender = (uint32_t)buffer[4] | (uint32_t)buffer[5] << 8 | (uint32_t)buffer[6] << 16 | (uint32_t)buffer[7] << 24;
-            
-            // Разбор флагов (Байт 12)
-            uint8_t flags   = buffer[12];
-            uint8_t hopLimit = flags & 0b00000111;           // Биты 0-2
-            bool wantAck     = (flags >> 3) & 0x01;          // Бит 3
-            bool viaMqtt     = (flags >> 4) & 0x01;          // Бит 4
-            uint8_t priority = (flags >> 5) & 0b00000111;    // Биты 5-7
-
-            // Канал (Байт 13)
-            uint8_t chanHash = buffer[13];
-
-            Serial.print(F("Sender ID:    0x")); Serial.println(sender, HEX);
-            Serial.print(F("Dest ID:      0x")); Serial.print(dest, HEX); 
-            if (dest == 0xFFFFFFFF) Serial.println(F(" (Broadcast)")); else Serial.println();
-
-            Serial.print(F("Hop Limit:    ")); Serial.println(hopLimit);
-            Serial.print(F("Priority:     ")); Serial.println(priority);
-            Serial.print(F("Want ACK:     ")); Serial.println(wantAck ? F("Yes") : F("No"));
-            Serial.print(F("Via MQTT:     ")); Serial.println(viaMqtt ? F("Yes") : F("No"));
-            Serial.print(F("Chan Hash:    0x")); Serial.println(chanHash, HEX);
-
-            // Отладочные данные железа
-            Serial.print(F("Freq Error:   ")); Serial.print(radio.getFrequencyError()); Serial.println(F(" Hz"));
-            Serial.print(F("Payload Size: ")); Serial.print(len - 16); Serial.println(F(" bytes"));
-            
-            // Дамп первых 8 байт зашифрованной части (для интереса)
-            Serial.print(F("Payload Hex:  "));
-            for(int i = 16; i < min((int)len, 24); i++) {
-                if(buffer[i] < 0x10) Serial.print('0');
-                Serial.print(buffer[i], HEX);
-                Serial.print(' ');
-            }
-            Serial.println(F("..."));
-        }
-
-        Serial.print(F("RSSI/SNR:    ")); Serial.print(radio.getRSSI()); 
-        Serial.print(F(" / ")); Serial.println(radio.getSNR());
+#ifdef ENABLE_PACKET_DEBUG
+        printPacketInsight(buffer, len, radio);
+#endif
     }
     
     radio.startReceive();
