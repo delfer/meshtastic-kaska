@@ -41,6 +41,12 @@ void setup() {
   // Настройка пробуждения по прерыванию на DIO0 (RISING)
   LowPower.attachInterruptWakeup(LORA_DIO0, NULL, RISING, DEEP_SLEEP_MODE);
 
+  // Включить тактирование DBGMCU (обязательно для L0!)
+  // (Потребление вырастет до ~300 мкА, но SWD не отвалится)
+  // (Без него потребление будет минимальным ~0.8 мкА)
+  __HAL_RCC_DBGMCU_CLK_ENABLE(); 
+  HAL_DBGMCU_EnableDBGStopMode();
+
 #ifdef ENABLE_I2C_SCANNER
   Wire2.begin();
 #endif
