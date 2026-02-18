@@ -1,5 +1,26 @@
 #include "packet_debug.h"
 
+// Используем реализацию tiny-aes из прошивки meshtastic
+#include "../meshtastic-firmware/src/platform/nrf52/aes-256/tiny-aes.cpp"
+
+void initMeshtasticNonce(uint8_t *nonce, uint32_t fromNode, uint32_t packetId) {
+    memset(nonce, 0, 16);
+    // NONCE: 64-bit packetId (LE), 32-bit fromNode (LE), 32-bit block counter (0)
+    memcpy(nonce, &packetId, sizeof(uint32_t)); // Meshtastic packetId is 32-bit in many places but stored in 64-bit slot
+    // packetId в Meshtastic (uint32_t) записывается в первые 8 байт (LE)
+    // fromNode записывается в следующие 4 байта
+    memcpy(nonce + 8, &fromNode, sizeof(uint32_t));
+}
+
+void decryptMeshtasticPayload(uint8_t* buffer, size_t len, uint32_t fromNode, uint32_t packetId, const uint8_t* key) {
+    uint8_t nonce[16];
+    initMeshtasticNonce(nonce, fromNode, packetId);
+
+    struct AES_ctx ctx;
+    AES_init_ctx_iv(&ctx, key, nonce);
+    AES_CTR_xcrypt_buffer(&ctx, buffer, len);
+}
+
 void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
     Serial.println(F("\n--- [Meshtastic Packet] ---"));
 
@@ -44,15 +65,37 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
         // Отладочные данные железа
         Serial.print(F("Freq Error:   ")); Serial.print(radio.getFrequencyError()); Serial.println(F(" Hz"));
         Serial.print(F("Payload Size: ")); Serial.print(len - 16); Serial.println(F(" bytes"));
+
+        // Расшифровка
+        uint8_t psk_default[32] = {0};
+        psk_default[0] = 0x01; // Ключ "AQ==" -> 0x01
         
-        // Дамп первых 8 байт полезной нагрузки
-        Serial.print(F("Payload Hex:  "));
-        for(int i = 16; i < min((int)len, 24); i++) {
-            if(buffer[i] < 0x10) Serial.print('0');
-            Serial.print(buffer[i], HEX);
+        // Копируем полезную нагрузку для расшифровки, чтобы не портить оригинал если нужно
+        uint8_t encrypted_payload[256];
+        size_t payload_len = len - 16;
+        if (payload_len > 256) payload_len = 256;
+        memcpy(encrypted_payload, buffer + 16, payload_len);
+
+        decryptMeshtasticPayload(encrypted_payload, payload_len, sender, packetId, psk_default);
+
+        Serial.print(F("Decrypted Hex: "));
+        for(size_t i = 0; i < min((int)payload_len, 16); i++) {
+            if(encrypted_payload[i] < 0x10) Serial.print('0');
+            Serial.print(encrypted_payload[i], HEX);
             Serial.print(' ');
         }
-        if (len > 24) Serial.println(F("...")); else Serial.println();
+        if (payload_len > 16) Serial.println(F("...")); else Serial.println();
+
+        // Попытка интерпретировать как текст (PortNum_TEXT_MESSAGE_APP = 1)
+        // В Meshtastic внутри зашифрованного payload обычно находится Protobuf meshtastic.Data
+        // Но для начала выведем просто как строку, если там есть читаемые символы
+        Serial.print(F("Decrypted ASCII: "));
+        for(size_t i = 0; i < min((int)payload_len, 32); i++) {
+            char c = encrypted_payload[i];
+            if (c >= 32 && c <= 126) Serial.print(c);
+            else Serial.print('.');
+        }
+        Serial.println();
     }
 
     Serial.print(F("RSSI/SNR:    ")); Serial.print(radio.getRSSI()); 
