@@ -127,13 +127,20 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
     uint32_t packetId = (uint32_t)buffer[8] | (uint32_t)buffer[9] << 8 | (uint32_t)buffer[10] << 16 | (uint32_t)buffer[11] << 24;
     uint8_t flags   = buffer[12];
     uint8_t chanHash = buffer[13];
+    uint8_t hopStart = buffer[14];
+    uint8_t relayNode = buffer[15];
 
     Serial.print(F("Sender ID:    0x")); Serial.println(sender, HEX);
     Serial.print(F("Dest ID:      0x")); Serial.print(dest, HEX);
     if (dest == 0xFFFFFFFF) Serial.println(F(" (Broadcast)")); else Serial.println();
     Serial.print(F("Packet ID:    0x")); Serial.println(packetId, HEX);
-    Serial.print(F("Hop Limit:    ")); Serial.println(flags & 0x07);
     
+    Serial.print(F("Hop Limit:    ")); Serial.println(flags & 0x07);
+    Serial.print(F("Hop Start:    ")); Serial.println(hopStart);
+    Serial.print(F("Want ACK:     ")); Serial.println((flags >> 3) & 0x01 ? F("Yes") : F("No"));
+    Serial.print(F("Via MQTT:     ")); Serial.println((flags >> 4) & 0x01 ? F("Yes") : F("No"));
+    Serial.print(F("Priority:     ")); Serial.println((flags >> 5) & 0x07);
+
     Serial.print(F("Chan Hash:    0x")); Serial.print(chanHash, HEX);
     if (chanHash == 0x08) {
         Serial.println(F(" (LongFast)"));
@@ -143,8 +150,11 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
         Serial.println(F(" (UNKNOWN! Decryption might fail)"));
         Serial.println(F("! WARNING: Non-standard Chan Hash, using derived key."));
     }
+    Serial.print(F("Relay Node:   0x")); Serial.println(relayNode, HEX);
 
-    Serial.print(F("RSSI/SNR:    ")); Serial.print(radio.getRSSI()); Serial.print(F(" / ")); Serial.println(radio.getSNR());
+    Serial.print(F("Freq Error:   ")); Serial.print(radio.getFrequencyError()); Serial.println(F(" Hz"));
+    Serial.print(F("Payload Size: ")); Serial.print(len - 16); Serial.println(F(" bytes"));
+    Serial.print(F("RSSI/SNR:     ")); Serial.print(radio.getRSSI()); Serial.print(F(" / ")); Serial.println(radio.getSNR());
 
     // Decryption setup
     uint8_t psk[16] = {0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59,
