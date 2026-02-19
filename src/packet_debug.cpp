@@ -101,7 +101,7 @@ void pbSkipField(uint8_t wireType, uint8_t** ptr, size_t* rem) {
 void printFixedPoint(int32_t value, int32_t divisor, int8_t precision) {
     Serial.print(value / divisor);
     Serial.print('.');
-    uint32_t frac = abs(value) % divisor;
+    uint32_t frac = (value < 0 ? -value : value) % divisor;
     
     // Вычисляем, сколько ведущих нулей нужно добавить в дробную часть
     int32_t temp_divisor = divisor / 10;
@@ -153,7 +153,7 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
         psk[15] = (uint8_t)(0x01 + (chanHash - 0x08));
     }
 
-    uint8_t payload[256];
+    static uint8_t payload[256]; // Переносим в static для экономии стека
     size_t payload_len = len - 16;
     if (payload_len > 256) payload_len = 256;
     memcpy(payload, buffer + 16, payload_len);
@@ -264,17 +264,19 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
                                 Serial.print(F("Battery:      ")); Serial.print(bat); Serial.println(F("%"));
                             } else if (d_field == 2 && d_wire == 5) {
                                 if (d_rem >= 4) {
-                                    float v; memcpy(&v, d_p, 4);
+                                    union { float f; uint32_t i; } conv;
+                                    memcpy(&conv.i, d_p, 4);
                                     Serial.print(F("Voltage:      "));
-                                    printFixedPoint((int32_t)(v * 100), 100, 2);
+                                    printFixedPoint((int32_t)(conv.f * 100), 100, 2);
                                     Serial.println(F("V"));
                                     d_p += 4; d_rem -= 4;
                                 } else d_rem = 0;
                             } else if (d_field == 3 && d_wire == 5) {
                                 if (d_rem >= 4) {
-                                    float u; memcpy(&u, d_p, 4);
+                                    union { float f; uint32_t i; } conv;
+                                    memcpy(&conv.i, d_p, 4);
                                     Serial.print(F("ChUtil:       "));
-                                    printFixedPoint((int32_t)(u * 100), 100, 2);
+                                    printFixedPoint((int32_t)(conv.f * 100), 100, 2);
                                     Serial.println(F("%"));
                                     d_p += 4; d_rem -= 4;
                                 } else d_rem = 0;
@@ -299,25 +301,28 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
                             e_p++; e_rem--;
                             if (e_field == 1 && e_wire == 5) {
                                 if (e_rem >= 4) {
-                                    float t; memcpy(&t, e_p, 4);
+                                    union { float f; uint32_t i; } conv;
+                                    memcpy(&conv.i, e_p, 4);
                                     Serial.print(F("Temp:         "));
-                                    printFixedPoint((int32_t)(t * 100), 100, 2);
+                                    printFixedPoint((int32_t)(conv.f * 100), 100, 2);
                                     Serial.println(F(" C"));
                                     e_p += 4; e_rem -= 4;
                                 } else e_rem = 0;
                             } else if (e_field == 2 && e_wire == 5) {
                                 if (e_rem >= 4) {
-                                    float h; memcpy(&h, e_p, 4);
+                                    union { float f; uint32_t i; } conv;
+                                    memcpy(&conv.i, e_p, 4);
                                     Serial.print(F("Humidity:     "));
-                                    printFixedPoint((int32_t)(h * 100), 100, 2);
+                                    printFixedPoint((int32_t)(conv.f * 100), 100, 2);
                                     Serial.println(F("%"));
                                     e_p += 4; e_rem -= 4;
                                 } else e_rem = 0;
                             } else if (e_field == 3 && e_wire == 5) {
                                 if (e_rem >= 4) {
-                                    float pr; memcpy(&pr, e_p, 4);
+                                    union { float f; uint32_t i; } conv;
+                                    memcpy(&conv.i, e_p, 4);
                                     Serial.print(F("Pressure:     "));
-                                    printFixedPoint((int32_t)(pr * 100), 100, 2);
+                                    printFixedPoint((int32_t)(conv.f * 100), 100, 2);
                                     Serial.println(F(" hPa"));
                                     e_p += 4; e_rem -= 4;
                                 } else e_rem = 0;
