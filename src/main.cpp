@@ -121,10 +121,8 @@ void loop() {
   if (digitalRead(LORA_DIO0) == HIGH) {
     digitalWrite(LED_PIN, HIGH);
     size_t len = radio.getPacketLength();
-    static uint8_t buffer[256]; // Используем static для уменьшения использования стека
+    uint8_t buffer[256]; // Буфер для пакета
 
-    // Для SX127x в RadioLib используется метод readData.
-    // Флаги прерываний очищаются внутри readData автоматически.
     int state = radio.readData(buffer, len);
 
     if (state == RADIOLIB_ERR_NONE) {
