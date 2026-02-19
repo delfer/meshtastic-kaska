@@ -185,33 +185,75 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
         uint8_t* p = encrypted_payload;
         size_t rem = payload_len;
 
-        // Очень простой парсер для поиска поля payload (tag 2)
-        while (rem > 2) {
+        uint32_t portNum = 0;
+        bool foundPortNum = false;
+
+        // Meshtastic Data (Protobuf) simple parser
+        // Tag 1: PortNum (Varint)
+        // Tag 2: Payload (Length-delimited)
+        while (rem > 0) {
             uint8_t tag = p[0];
-            if (tag == 0x12) { // Поле payload (tag 2)
+            uint8_t wireType = tag & 0x07;
+            uint32_t fieldNum = tag >> 3;
+
+            if (fieldNum == 1 && wireType == 0) { // PortNum (Varint)
+                p++; rem--;
+                uint32_t val = 0;
+                uint8_t shift = 0;
+                while(rem > 0) {
+                    uint8_t b = p[0];
+                    val |= (uint32_t)(b & 0x7F) << shift;
+                    p++; rem--;
+                    if (!(b & 0x80)) break;
+                    shift += 7;
+                }
+                portNum = val;
+                foundPortNum = true;
+                
+                Serial.print(F("PortNum:      ")); Serial.print(portNum);
+                switch(portNum) {
+                    case 1:  Serial.println(F(" (TEXT_MESSAGE)")); break;
+                    case 2:  Serial.println(F(" (REMOTE_HARDWARE)")); break;
+                    case 3:  Serial.println(F(" (POSITION)")); break;
+                    case 4:  Serial.println(F(" (NODEINFO)")); break;
+                    case 5:  Serial.println(F(" (ROUTING)")); break;
+                    case 6:  Serial.println(F(" (ADMIN)")); break;
+                    case 9:  Serial.println(F(" (AUDIO)")); break;
+                    case 32: Serial.println(F(" (REPLY)")); break;
+                    case 67: Serial.println(F(" (TELEMETRY)")); break;
+                    case 70: Serial.println(F(" (TRACEROUTE)")); break;
+                    case 71: Serial.println(F(" (NEIGHBORINFO)")); break;
+                    default: Serial.println(); break;
+                }
+            } else if (fieldNum == 2 && wireType == 2) { // Payload (bytes/string)
                 uint8_t pb_len = p[1];
                 if (pb_len <= rem - 2) {
-                    Serial.print(F("Probable Text:  \""));
-                    for(int i=0; i<pb_len; i++) {
-                        char c = p[i+2];
-                        if (c >= 32 && c < 127) Serial.print(c);
-                        else Serial.print('.');
+                    if (portNum == 1 || portNum == 32) { // Text or Reply
+                        Serial.print(F("Probable Text: \""));
+                        for(int i=0; i<pb_len; i++) {
+                            char c = p[i+2];
+                            if (c >= 32 && c < 127) Serial.print(c);
+                            else Serial.print('.');
+                        }
+                        Serial.println('\"');
                     }
-                    Serial.println('\"');
                 }
-                break;
-            }
-            // Пропускаем varint (упрощенно для PortNum и т.п.)
-            if ((tag & 0x07) == 0) { // Varint
-                p++; rem--;
-                while(rem > 0 && (p[0] & 0x80)) { p++; rem--; }
-                p++; rem--;
-            } else if ((tag & 0x07) == 2) { // Length-delimited
-                uint8_t l = p[1];
-                p += 2 + l;
-                if (rem >= (size_t)(2 + l)) rem -= (2 + l); else rem = 0;
+                // Skip length-delimited
+                p += 2 + pb_len;
+                if (rem >= (size_t)(2 + pb_len)) rem -= (2 + pb_len); else rem = 0;
             } else {
-                break; // Неизвестный тип, выходим
+                // Skip unknown tags
+                if (wireType == 0) { // Varint
+                    p++; rem--;
+                    while(rem > 0 && (p[0] & 0x80)) { p++; rem--; }
+                    p++; rem--;
+                } else if (wireType == 2) { // Length-delimited
+                    uint8_t l = p[1];
+                    p += 2 + l;
+                    if (rem >= (size_t)(2 + l)) rem -= (2 + l); else rem = 0;
+                } else {
+                    break;
+                }
             }
         }
     }
