@@ -148,6 +148,37 @@ void loop() {
     Serial.print(F("Battery Voltage: "));
     Serial.print(vbat);
     Serial.println(F(" V"));
+
+    if (vbat < 3.5f) {
+      Serial.println(F("!!! CRITICAL BATTERY VOLTAGE !!!"));
+      Serial.println(F("Shutting down radio and entering deep sleep..."));
+      Serial.flush();
+
+      // Отключаем радиомодуль
+      radio.sleep();
+
+      // Отключаем светодиод
+      digitalWrite(LED_PIN, LOW);
+
+      // Полное отключение радио и уход в цикл ожидания заряда
+      while (true) {
+        // Спим 1 минуту (60000 мс) для экономии энергии
+        LowPower.deepSleep(60000);
+        
+        // После просыпания проверяем напряжение
+        vbat = readBatteryVoltage();
+        Serial.print(F("Check voltage in shutdown: "));
+        Serial.print(vbat);
+        Serial.println(F(" V"));
+        
+        // Если напряжение поднялось выше 3.6В (небольшой гистерезис), перезагружаемся
+        if (vbat > 3.6f) {
+          Serial.println(F("Voltage recovered. Restarting..."));
+          Serial.flush();
+          HAL_NVIC_SystemReset();
+        }
+      }
+    }
   }
 
   // Уходим в сон до прерывания на DIO0
