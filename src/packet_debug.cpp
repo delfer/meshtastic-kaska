@@ -146,8 +146,8 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
     if (dest == 0xFFFFFFFF) Serial.println(F(" (Bcast)")); else Serial.println();
     printL(F("Pkt ID"), true); Serial.println(packetId, HEX);
     
-    printL(F("Hop Lm")); Serial.println(flags & 0x07);
-    printL(F("Hop St")); Serial.println((flags >> 5) & 0x07);
+    printL(F("Hop Lft")); Serial.println(flags & 0x07);
+    printL(F("Hop Lim")); Serial.println((flags >> 5) & 0x07);
     printL(F("Wnt ACK")); Serial.println((flags >> 3) & 0x01 ? 'Y' : 'N');
     printL(F("MQTT"));    Serial.println((flags >> 4) & 0x01 ? 'Y' : 'N');
 
