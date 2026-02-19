@@ -1,28 +1,72 @@
 #include "packet_debug.h"
 
-// Используем реализацию tiny-aes из прошивки meshtastic
-#include "../meshtastic-firmware/src/platform/nrf52/aes-256/tiny-aes.cpp"
+// Используем локальную реализацию tiny-aes, настроенную на AES-128
+#include "tiny-aes.h"
 
-void initMeshtasticNonce(uint8_t *nonce, uint32_t fromNode, uint32_t packetId) {
+void initMeshtasticNonce(uint8_t *nonce, uint32_t fromNode, uint32_t packetId, bool is_be) {
     memset(nonce, 0, 16);
-    // NONCE: 64-bit packetId (LE), 32-bit fromNode (LE), 32-bit block counter (0)
-    memcpy(nonce, &packetId, sizeof(uint32_t)); // Meshtastic packetId is 32-bit in many places but stored in 64-bit slot
-    // packetId в Meshtastic (uint32_t) записывается в первые 8 байт (LE)
-    // fromNode записывается в следующие 4 байта
-    memcpy(nonce + 8, &fromNode, sizeof(uint32_t));
+    // Nonce (16 bytes) для Meshtastic V2:
+    // 1. Packet ID (8 байт, Little Endian)
+    // 2. Sender Node ID (4 байта, Little Endian)
+    // 3. Block Counter (4 байта, Big Endian - заполняется в decryptMeshtasticCTR)
+    
+    uint64_t pid64 = packetId;
+    nonce[0] = (pid64 >> 0) & 0xFF;
+    nonce[1] = (pid64 >> 8) & 0xFF;
+    nonce[2] = (pid64 >> 16) & 0xFF;
+    nonce[3] = (pid64 >> 24) & 0xFF;
+    nonce[4] = (pid64 >> 32) & 0xFF;
+    nonce[5] = (pid64 >> 40) & 0xFF;
+    nonce[6] = (pid64 >> 48) & 0xFF;
+    nonce[7] = (pid64 >> 56) & 0xFF;
+
+    nonce[8] = (fromNode >> 0) & 0xFF;
+    nonce[9] = (fromNode >> 8) & 0xFF;
+    nonce[10] = (fromNode >> 16) & 0xFF;
+    nonce[11] = (fromNode >> 24) & 0xFF;
 }
 
-void decryptMeshtasticPayload(uint8_t* buffer, size_t len, uint32_t fromNode, uint32_t packetId, const uint8_t* key) {
+// Кастомная реализация CTR для Meshtastic
+void decryptMeshtasticCTR(uint8_t* buffer, size_t len, uint32_t fromNode, uint32_t packetId, const uint8_t* key) {
     uint8_t nonce[16];
-    initMeshtasticNonce(nonce, fromNode, packetId);
+    initMeshtasticNonce(nonce, fromNode, packetId, false); // is_be игнорируем, используем стандарт V2
 
     struct AES_ctx ctx;
-    AES_init_ctx_iv(&ctx, key, nonce);
-    AES_CTR_xcrypt_buffer(&ctx, buffer, len);
+    AES_init_ctx(&ctx, key);
+
+    uint8_t stream_block[16];
+    uint32_t block_count = 0;
+
+    for (size_t i = 0; i < len; i++) {
+        if ((i & 0x0F) == 0) {
+            uint8_t counter_block[16];
+            memcpy(counter_block, nonce, 16);
+            
+            // Block Counter (байты 12-15) в Big Endian для CTR
+            counter_block[15] = (block_count >> 0) & 0xFF;
+            counter_block[14] = (block_count >> 8) & 0xFF;
+            counter_block[13] = (block_count >> 16) & 0xFF;
+            counter_block[12] = (block_count >> 24) & 0xFF;
+            
+            memcpy(stream_block, counter_block, 16);
+            Cipher((state_t*)stream_block, ctx.RoundKey);
+            block_count++;
+        }
+        buffer[i] ^= stream_block[i & 0x0F];
+    }
+}
+
+void decryptMeshtasticPayload(uint8_t* buffer, size_t len, uint32_t fromNode, uint32_t packetId, const uint8_t* key, bool is_be) {
+    decryptMeshtasticCTR(buffer, len, fromNode, packetId, key);
 }
 
 void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
     Serial.println(F("\n--- [Meshtastic Packet] ---"));
+
+    if (len < 16) {
+        Serial.print(F("Packet too short: ")); Serial.println(len);
+        return;
+    }
 
     if (len >= 16) {
         // Offset 0x00: Destination (4 bytes, Little-endian) - Unique NodeID of the recipient
@@ -67,22 +111,57 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
         Serial.print(F("Payload Size: ")); Serial.print(len - 16); Serial.println(F(" bytes"));
 
         // Расшифровка
-        uint8_t psk_default[32] = {0};
-        psk_default[0] = 0x01; // Ключ "AQ==" -> 0x01
+        // Расшифровка
+        // Meshtastic использует специальный ключ для публичных каналов.
+        // Расшифровка
+        // Meshtastic использует специальный ключ для публичных каналов.
+        // Ключ "AQ==" (0x01) является "алиасом" для стандартного 128-битного ключа.
+        // В Meshtastic используется AES-128 для 1-байтовых ключей.
+        // Стандартный ключ defaultpsk для Meshtastic (LongFast)
+        // Стандартный ключ defaultpsk для Meshtastic (LongFast)
+        uint8_t psk[16] = {0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59,
+                           0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01};
         
-        // Копируем полезную нагрузку для расшифровки, чтобы не портить оригинал если нужно
+        // По хешу канала можно понять, какой ключ использовать.
+        // 0x08 - это хеш для LongFast (defaultpsk с индексом 1)
+        // Если Chan Hash != 0x08, пробуем подобрать ключ на основе разницы хешей.
+        if (chanHash != 0x08 && chanHash != 0x00) {
+            // В Meshtastic хеш канала зависит и от имени, и от PSK.
+            // Но часто используются стандартные индексы PSK (1, 2, 3...).
+            // Если это стандартный канал (напр. MediumFast), psk[15] может отличаться.
+            // psk[15] = 0x01 + (pskIndex - 1)
+            // Попробуем просто применить смещение хеша к байту ключа (очень упрощенно).
+            psk[15] = (uint8_t)(0x01 + (chanHash - 0x08));
+        }
+
+        // Копируем полезную нагрузку для расшифровки
         uint8_t encrypted_payload[256];
         size_t payload_len = len - 16;
         if (payload_len > 256) payload_len = 256;
+        
+        // --- РАСШИФРОВКА ---
+        uint8_t current_psk[16]; memcpy(current_psk, psk, 16);
+        // Если Chan Hash отличается от стандартного LongFast (0x08), пробуем адаптировать ключ
+        if (chanHash != 0x08 && chanHash != 0x00) {
+            current_psk[15] = (uint8_t)(0x01 + (chanHash - 0x08));
+        }
+
         memcpy(encrypted_payload, buffer + 16, payload_len);
+        decryptMeshtasticPayload(encrypted_payload, payload_len, sender, packetId, current_psk, false);
 
-        decryptMeshtasticPayload(encrypted_payload, payload_len, sender, packetId, psk_default);
+        Serial.print(F("Selected Nonce: "));
+        uint8_t debug_nonce[16];
+        initMeshtasticNonce(debug_nonce, sender, packetId, false);
+        for(int i=0; i<16; i++) {
+            if(debug_nonce[i] < 0x10) Serial.print('0');
+            Serial.print(debug_nonce[i], HEX); Serial.print(' ');
+        }
+        Serial.println();
 
-        Serial.print(F("Decrypted Hex: "));
+        Serial.print(F("Decrypted Hex:  "));
         for(size_t i = 0; i < min((int)payload_len, 16); i++) {
             if(encrypted_payload[i] < 0x10) Serial.print('0');
-            Serial.print(encrypted_payload[i], HEX);
-            Serial.print(' ');
+            Serial.print(encrypted_payload[i], HEX); Serial.print(' ');
         }
         if (payload_len > 16) Serial.println(F("...")); else Serial.println();
 
@@ -93,9 +172,48 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
         for(size_t i = 0; i < min((int)payload_len, 32); i++) {
             char c = encrypted_payload[i];
             if (c >= 32 && c <= 126) Serial.print(c);
+            else if (c == 0) Serial.print(F("\\0"));
             else Serial.print('.');
         }
         Serial.println();
+
+        // Попытка найти текст внутри meshtastic.Data (Protobuf)
+        // meshtastic.Data { string payload = 2; ... } -> tag 2, wire type 2 (length-delimited) -> 0x12
+        // Но сначала может идти PortNum (tag 1, varint).
+        // Если это TEXT_MESSAGE_APP (1), то байты будут 0x08 0x01
+        
+        uint8_t* p = encrypted_payload;
+        size_t rem = payload_len;
+
+        // Очень простой парсер для поиска поля payload (tag 2)
+        while (rem > 2) {
+            uint8_t tag = p[0];
+            if (tag == 0x12) { // Поле payload (tag 2)
+                uint8_t pb_len = p[1];
+                if (pb_len <= rem - 2) {
+                    Serial.print(F("Probable Text:  \""));
+                    for(int i=0; i<pb_len; i++) {
+                        char c = p[i+2];
+                        if (c >= 32 && c < 127) Serial.print(c);
+                        else Serial.print('.');
+                    }
+                    Serial.println('\"');
+                }
+                break;
+            }
+            // Пропускаем varint (упрощенно для PortNum и т.п.)
+            if ((tag & 0x07) == 0) { // Varint
+                p++; rem--;
+                while(rem > 0 && (p[0] & 0x80)) { p++; rem--; }
+                p++; rem--;
+            } else if ((tag & 0x07) == 2) { // Length-delimited
+                uint8_t l = p[1];
+                p += 2 + l;
+                if (rem >= (size_t)(2 + l)) rem -= (2 + l); else rem = 0;
+            } else {
+                break; // Неизвестный тип, выходим
+            }
+        }
     }
 
     Serial.print(F("RSSI/SNR:    ")); Serial.print(radio.getRSSI()); 
