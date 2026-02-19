@@ -59,7 +59,7 @@ void setup() {
   SPI.begin();
   // 1. Инициализация с базовыми параметрами
   // Частота: 869.075, Полоса: 250.0, SF: 11, CR: 5 (Long Fast)
-  int state = radio.begin(869.080, 250.0, 11, 5);
+  int state = radio.begin(869.080f, 250.0f, 11, 5);
   if (state == RADIOLIB_ERR_NONE) {
     // 2. Устанавливаем специфичный для Meshtastic Sync Word
     state = radio.setSyncWord(0x2B);
