@@ -138,7 +138,7 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
     uint32_t packetId = (uint32_t)buffer[8] | (uint32_t)buffer[9] << 8 | (uint32_t)buffer[10] << 16 | (uint32_t)buffer[11] << 24;
     uint8_t flags   = buffer[12];
     uint8_t chanHash = buffer[13];
-    uint8_t hopStart = buffer[14];
+    uint8_t nextHop = buffer[14];
     uint8_t relayNode = buffer[15];
 
     printL(F("Sender"), true); Serial.println(sender, HEX);
@@ -147,10 +147,9 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
     printL(F("Pkt ID"), true); Serial.println(packetId, HEX);
     
     printL(F("Hop Lm")); Serial.println(flags & 0x07);
-    printL(F("Hop St")); Serial.println(hopStart);
+    printL(F("Hop St")); Serial.println((flags >> 5) & 0x07);
     printL(F("Wnt ACK")); Serial.println((flags >> 3) & 0x01 ? 'Y' : 'N');
     printL(F("MQTT"));    Serial.println((flags >> 4) & 0x01 ? 'Y' : 'N');
-    printL(F("Prio"));    Serial.println((flags >> 5) & 0x07);
 
     printL(F("Chan H"), true); Serial.print(chanHash, HEX);
     if (chanHash == 0x08) {
@@ -161,6 +160,7 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
         Serial.println(F(" (Unknown Hash!)"));
         Serial.println(F("! Warn: Non-std hash, try key"));
     }
+    printL(F("Nx Hop"), true); Serial.println(nextHop, HEX);
     printL(F("Relay"), true);  Serial.println(relayNode, HEX);
 
     printL(F("FreqErr")); Serial.print(radio.getFrequencyError()); Serial.println(F("Hz"));
