@@ -31,26 +31,23 @@ TwoWire Wire2(PB14, PB13); // SDA, SCL
 SX1276 radio = new Module(LORA_NSS, LORA_DIO0, LORA_RST, LORA_DIO1);
 
 float readBatteryVoltage() {
-  // На PA3 напряжение через делитель 1/2.
+  // Теперь АЦП успевает заряжаться благодаря ADC_SAMPLINGTIME в platformio.ini
   analogReadResolution(12);
-  
-  // Делаем серию чтений для усреднения и стабилизации
-  uint32_t raw_sum = 0;
-  for (int i = 0; i < 16; i++) {
-    raw_sum += analogRead(BAT_PIN);
-    delay(1);
-  }
-  float raw = raw_sum / 16.0f;
-  
-  // Калибровка на основе данных пользователя:
-  // При реальном напряжении 3.68В Raw ADC в среднем 1320.63.
-  // Коэффициент = 3.68 / 1320.63 ≈ 0.0027865
-  float voltage = raw * 0.0027865f;
-  
+
+  // Одно чтение теперь гораздо точнее благодаря увеличению ADC_SAMPLINGTIME
+  uint32_t raw = analogRead(BAT_PIN);
+
+  // Теоретический коэффициент для делителя 1/2 и Vref 2.5V:
+  // (2.5 / 4095) * 2 = 0.00122100122
+  // Фактически при 4.01В на входе АЦП выдает raw=2288.
+  // Это означает, что реальный коэффициент составляет 4.01 / 2288 ≈ 0.00175262.
+  // Разница может быть вызвана отклонением Vref от 2.5В или погрешностью резисторов.
+  float voltage = raw * 0.00175262f;
+
   Serial.print(F("ADC Raw: "));
   Serial.print(raw);
   Serial.print(F(" -> "));
-  
+
   return voltage;
 }
 
