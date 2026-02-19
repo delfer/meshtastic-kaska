@@ -14,6 +14,8 @@ TwoWire Wire2(PB14, PB13); // SDA, SCL
 #ifdef ENABLE_PACKET_DEBUG
 #include "packet_debug.h"
 #endif
+#include "packet_cache.h"
+#include "mesh_utils.h"
 
 #define LED_PIN PA15
 
@@ -44,7 +46,7 @@ float readBatteryVoltage() {
   // Разница может быть вызвана отклонением Vref от 2.5В или погрешностью резисторов.
   float voltage = raw * 0.00175262f;
 
-  Serial.print(F("ADC Raw: "));
+  Serial.print(F("\nADC Raw: "));
   Serial.print(raw);
   Serial.print(F(" -> "));
 
@@ -74,6 +76,11 @@ void setup() {
 #ifdef ENABLE_I2C_SCANNER
   Wire2.begin();
 #endif
+
+  Serial.println(F("Booting..."));
+  // Инициализация кэша пакетов
+  packetCacheInit();
+  Serial.println(F("Cache init done."));
 
   // LoRa initialization
   Serial.print(F("[RadioLib] Initializing ... "));
@@ -192,12 +199,36 @@ void loop() {
     // Флаги прерываний очищаются внутри readData автоматически.
     int state = radio.readData(buffer, len);
 
-    if (state == RADIOLIB_ERR_NONE) {
+    if (state == RADIOLIB_ERR_NONE && len >= 16) {
+        MeshHeader header;
+        parseMeshHeader(buffer, &header);
+
+        if (addPacketToCache(header.from, header.pktId)) {
+            Serial.print(F("\nNew packet from 0x"));
+            Serial.print(header.from, HEX);
+            Serial.print(F(" with ID 0x"));
+            Serial.println(header.pktId, HEX);
+            
 #ifdef ENABLE_PACKET_DEBUG
-        printPacketInsight(buffer, len, radio);
+            printPacketInsight(buffer, len, radio);
 #endif
+        } else {
+            Serial.print(F("\nDuplicate packet from 0x"));
+            Serial.print(header.from, HEX);
+            Serial.print(F(" with ID 0x"));
+            Serial.println(header.pktId, HEX);
+        }
+    } else if (state == RADIOLIB_ERR_NONE) {
+        Serial.println(F("Packet too short for Meshtastic header"));
     }
     
+    // Очищаем прерывания и переходим в режим ожидания нового пакета
     radio.startReceive();
+
+    // Ждем пока DIO0 упадет, чтобы не прочитать тот же пакет снова в следующем цикле loop
+    // (поскольку readData очищает флаги в чипе, но пин может еще мгновение быть HIGH)
+    while(digitalRead(LORA_DIO0) == HIGH) {
+        delay(1);
+    }
   }
 }
