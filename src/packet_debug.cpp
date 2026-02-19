@@ -1,95 +1,5 @@
 #include "packet_debug.h"
-
-// Используем локальную реализацию tiny-aes, настроенную на AES-128
-#include "tiny-aes.h"
-
-void initMeshtasticNonce(uint8_t *nonce, uint32_t fromNode, uint32_t packetId, bool is_be) {
-    memset(nonce, 0, 16);
-    // Nonce (16 bytes) для Meshtastic V2:
-    // 1. Packet ID (8 байт, Little Endian)
-    // 2. Sender Node ID (4 байта, Little Endian)
-    // 3. Block Counter (4 байта, Big Endian - заполняется в decryptMeshtasticCTR)
-    
-    uint64_t pid64 = packetId;
-    nonce[0] = (pid64 >> 0) & 0xFF;
-    nonce[1] = (pid64 >> 8) & 0xFF;
-    nonce[2] = (pid64 >> 16) & 0xFF;
-    nonce[3] = (pid64 >> 24) & 0xFF;
-    nonce[4] = (pid64 >> 32) & 0xFF;
-    nonce[5] = (pid64 >> 40) & 0xFF;
-    nonce[6] = (pid64 >> 48) & 0xFF;
-    nonce[7] = (pid64 >> 56) & 0xFF;
-
-    nonce[8] = (fromNode >> 0) & 0xFF;
-    nonce[9] = (fromNode >> 8) & 0xFF;
-    nonce[10] = (fromNode >> 16) & 0xFF;
-    nonce[11] = (fromNode >> 24) & 0xFF;
-}
-
-// Кастомная реализация CTR для Meshtastic
-void decryptMeshtasticCTR(uint8_t* buffer, size_t len, uint32_t fromNode, uint32_t packetId, const uint8_t* key) {
-    uint8_t nonce[16];
-    initMeshtasticNonce(nonce, fromNode, packetId, false); // is_be игнорируем, используем стандарт V2
-
-    struct AES_ctx ctx;
-    AES_init_ctx(&ctx, key);
-
-    uint8_t stream_block[16];
-    uint32_t block_count = 0;
-
-    for (size_t i = 0; i < len; i++) {
-        if ((i & 0x0F) == 0) {
-            uint8_t counter_block[16];
-            memcpy(counter_block, nonce, 16);
-            
-            // Block Counter (байты 12-15) в Big Endian для CTR
-            counter_block[15] = (block_count >> 0) & 0xFF;
-            counter_block[14] = (block_count >> 8) & 0xFF;
-            counter_block[13] = (block_count >> 16) & 0xFF;
-            counter_block[12] = (block_count >> 24) & 0xFF;
-            
-            memcpy(stream_block, counter_block, 16);
-            Cipher((state_t*)stream_block, ctx.RoundKey);
-            block_count++;
-        }
-        buffer[i] ^= stream_block[i & 0x0F];
-    }
-}
-
-void decryptMeshtasticPayload(uint8_t* buffer, size_t len, uint32_t fromNode, uint32_t packetId, const uint8_t* key, bool is_be) {
-    decryptMeshtasticCTR(buffer, len, fromNode, packetId, key);
-}
-
-// Helper to parse Varint and advance pointer safely
-uint32_t pbReadVarint(uint8_t** ptr, size_t* rem) {
-    uint32_t val = 0;
-    uint8_t shift = 0;
-    while (*rem > 0) {
-        uint8_t b = **ptr;
-        (*ptr)++; (*rem)--;
-        val |= (uint32_t)(b & 0x7F) << shift;
-        if (!(b & 0x80)) break;
-        shift += 7;
-        if (shift >= 32) break; // Safety
-    }
-    return val;
-}
-
-// Helper to skip protobuf fields safely
-void pbSkipField(uint8_t wireType, uint8_t** ptr, size_t* rem) {
-    if (wireType == 0) { // Varint
-        pbReadVarint(ptr, rem);
-    } else if (wireType == 1) { // Fixed64
-        if (*rem >= 8) { *ptr += 8; *rem -= 8; } else *rem = 0;
-    } else if (wireType == 2) { // Length-delimited
-        uint32_t len = pbReadVarint(ptr, rem);
-        if (*rem >= len) { *ptr += len; *rem -= len; } else *rem = 0;
-    } else if (wireType == 5) { // Fixed32
-        if (*rem >= 4) { *ptr += 4; *rem -= 4; } else *rem = 0;
-    } else {
-        *rem = 0; // Abort on unknown wire type
-    }
-}
+#include "mesh_utils.h"
 
 /**
  * @brief Печатает число с фиксированной точкой без использования float в Serial.print.
@@ -124,7 +34,7 @@ void printL(const __FlashStringHelper* label, bool hex_prefix = false) {
     if (hex_prefix) Serial.print(F("0x"));
 }
 
-void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
+void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio, const MeshHeader& header) {
     Serial.println(F("\n--- [Mesh Pkt] ---"));
 
     if (len < 16) {
@@ -132,53 +42,46 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
         return;
     }
 
-    // Header decoding
-    uint32_t dest   = (uint32_t)buffer[0] | (uint32_t)buffer[1] << 8 | (uint32_t)buffer[2] << 16 | (uint32_t)buffer[3] << 24;
-    uint32_t sender = (uint32_t)buffer[4] | (uint32_t)buffer[5] << 8 | (uint32_t)buffer[6] << 16 | (uint32_t)buffer[7] << 24;
-    uint32_t packetId = (uint32_t)buffer[8] | (uint32_t)buffer[9] << 8 | (uint32_t)buffer[10] << 16 | (uint32_t)buffer[11] << 24;
-    uint8_t flags   = buffer[12];
-    uint8_t chanHash = buffer[13];
-    uint8_t nextHop = buffer[14];
-    uint8_t relayNode = buffer[15];
+    // Header уже распарсен, используем переданный
 
-    printL(F("Sender"), true); Serial.println(sender, HEX);
-    printL(F("Dest"), true);   Serial.print(dest, HEX);
-    if (dest == 0xFFFFFFFF) Serial.println(F(" (Bcast)")); else Serial.println();
-    printL(F("Pkt ID"), true); Serial.println(packetId, HEX);
+    printL(F("Sender"), true); Serial.println(header.from, HEX);
+    printL(F("Dest"), true);   Serial.print(header.dest, HEX);
+    if (header.dest == 0xFFFFFFFF) Serial.println(F(" (Bcast)")); else Serial.println();
+    printL(F("Pkt ID"), true); Serial.println(header.pktId, HEX);
     
-    printL(F("Hop Lft")); Serial.println(flags & 0x07);
-    printL(F("Hop Lim")); Serial.println((flags >> 5) & 0x07);
-    printL(F("Wnt ACK")); Serial.println((flags >> 3) & 0x01 ? 'Y' : 'N');
-    printL(F("MQTT"));    Serial.println((flags >> 4) & 0x01 ? 'Y' : 'N');
+    printL(F("Hop Lft")); Serial.println(header.hopStart);
+    printL(F("Hop Lim")); Serial.println(header.hopLimit);
+    printL(F("Wnt ACK")); Serial.println(header.wantAck ? 'Y' : 'N');
+    printL(F("MQTT"));    Serial.println(header.viaMqtt ? 'Y' : 'N');
 
-    printL(F("Chan H"), true); Serial.print(chanHash, HEX);
-    if (chanHash == 0x08) {
+    printL(F("Chan H"), true); Serial.print(header.chanHash, HEX);
+    if (header.chanHash == 0x08) {
         Serial.println(F(" (LongFast)"));
-    } else if (chanHash == 0x00) {
+    } else if (header.chanHash == 0x00) {
         Serial.println(F(" (Routing/Ctrl)"));
     } else {
         Serial.println(F(" (Unknown Hash!)"));
         Serial.println(F("! Warn: Non-std hash, try key"));
     }
-    printL(F("Nx Hop"), true); Serial.println(nextHop, HEX);
-    printL(F("Relay"), true);  Serial.println(relayNode, HEX);
+    printL(F("Nx Hop"), true); Serial.println(header.nextHop, HEX);
+    printL(F("Relay"), true);  Serial.println(header.relayNode, HEX);
 
     printL(F("FreqErr")); Serial.print(radio.getFrequencyError()); Serial.println(F("Hz"));
-    printL(F("Pld Size")); Serial.print(len - 16); Serial.println(F("B"));
+    printL(F("Pld Size")); Serial.print(len - 16);
     printL(F("RSSI/SNR")); Serial.print(radio.getRSSI()); Serial.print(F("/")); Serial.println(radio.getSNR());
 
     // Decryption setup
     uint8_t psk[16] = {0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59,
                        0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01};
-    if (chanHash != 0x08 && chanHash != 0x00) {
-        psk[15] = (uint8_t)(0x01 + (chanHash - 0x08));
+    if (header.chanHash != 0x08 && header.chanHash != 0x00) {
+        psk[15] = (uint8_t)(0x01 + (header.chanHash - 0x08));
     }
 
     static uint8_t payload[256]; // Переносим в static для экономии стека
     size_t payload_len = len - 16;
     if (payload_len > 256) payload_len = 256;
     memcpy(payload, buffer + 16, payload_len);
-    decryptMeshtasticPayload(payload, payload_len, sender, packetId, psk, false);
+    decryptMeshtasticPayload(payload, payload_len, header.from, header.pktId, psk);
 
     printL(F("Hex"));
     for(size_t i = 0; i < min((int)payload_len, 16); i++) {

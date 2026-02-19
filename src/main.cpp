@@ -210,7 +210,7 @@ void loop() {
             Serial.println(header.pktId, HEX);
             
 #ifdef ENABLE_PACKET_DEBUG
-            printPacketInsight(buffer, len, radio);
+            printPacketInsight(buffer, len, radio, header);
 #endif
         } else {
             Serial.print(F("\nDuplicate packet from 0x"));
