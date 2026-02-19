@@ -26,7 +26,33 @@ TwoWire Wire2(PB14, PB13); // SDA, SCL
 #define LORA_DIO0 PB2
 #define LORA_DIO1 PB1
 
+#define BAT_PIN PA3
+
 SX1276 radio = new Module(LORA_NSS, LORA_DIO0, LORA_RST, LORA_DIO1);
+
+float readBatteryVoltage() {
+  // На PA3 напряжение через делитель 1/2.
+  analogReadResolution(12);
+  
+  // Делаем серию чтений для усреднения и стабилизации
+  uint32_t raw_sum = 0;
+  for (int i = 0; i < 16; i++) {
+    raw_sum += analogRead(BAT_PIN);
+    delay(1);
+  }
+  float raw = raw_sum / 16.0f;
+  
+  // Калибровка на основе данных пользователя:
+  // При реальном напряжении 3.68В Raw ADC в среднем 1320.63.
+  // Коэффициент = 3.68 / 1320.63 ≈ 0.0027865
+  float voltage = raw * 0.0027865f;
+  
+  Serial.print(F("ADC Raw: "));
+  Serial.print(raw);
+  Serial.print(F(" -> "));
+  
+  return voltage;
+}
 
 void setup() {
   Serial.setTx(PA9);
@@ -34,6 +60,7 @@ void setup() {
   Serial.begin(115200);
   
   pinMode(LED_PIN, OUTPUT);
+  pinMode(BAT_PIN, INPUT_ANALOG);
   Serial.println("Debug output initialized on PA9");
 
   // Инициализация библиотеки энергосбережения
@@ -59,7 +86,7 @@ void setup() {
   SPI.begin();
   // 1. Инициализация с базовыми параметрами
   // Частота: 869.075, Полоса: 250.0, SF: 11, CR: 5 (Long Fast)
-  int state = radio.begin(869.080f, 250.0f, 11, 5);
+  int state = radio.begin(869.082f, 250.0f, 11, 5);
   if (state == RADIOLIB_ERR_NONE) {
     // 2. Устанавливаем специфичный для Meshtastic Sync Word
     state = radio.setSyncWord(0x2B);
@@ -113,6 +140,16 @@ void setup() {
 }
 
 void loop() {
+  // Периодический вывод напряжения батареи
+  static unsigned long lastBatCheck = 0;
+  if (millis() - lastBatCheck > 10000 || lastBatCheck == 0) {
+    lastBatCheck = millis();
+    float vbat = readBatteryVoltage();
+    Serial.print(F("Battery Voltage: "));
+    Serial.print(vbat);
+    Serial.println(F(" V"));
+  }
+
   // Уходим в сон до прерывания на DIO0
   Serial.flush();
   digitalWrite(LED_PIN, LOW);
@@ -121,8 +158,10 @@ void loop() {
   if (digitalRead(LORA_DIO0) == HIGH) {
     digitalWrite(LED_PIN, HIGH);
     size_t len = radio.getPacketLength();
-    uint8_t buffer[256]; // Буфер для пакета
+    static uint8_t buffer[256]; // Используем static для уменьшения использования стека
 
+    // Для SX127x в RadioLib используется метод readData.
+    // Флаги прерываний очищаются внутри readData автоматически.
     int state = radio.readData(buffer, len);
 
     if (state == RADIOLIB_ERR_NONE) {
