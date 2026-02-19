@@ -189,10 +189,17 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
 
     printL(F("ASCII"));
     for(size_t i = 0; i < min((int)payload_len, 32); i++) {
-        char c = payload[i];
-        if (c >= 32 && c <= 126) Serial.print(c);
-        else if (c == 0) Serial.print(F("\\0"));
-        else Serial.print('.');
+        uint8_t c = payload[i];
+        if (c >= 32 && c <= 126) {
+            Serial.print((char)c);
+        } else if (c >= 0x80) {
+            // Простейшая проверка на UTF-8: если это часть многобайтовой последовательности
+            Serial.print((char)c);
+        } else if (c == 0) {
+            Serial.print(F("\\0"));
+        } else {
+            Serial.print('.');
+        }
     }
     Serial.println();
 
@@ -230,8 +237,15 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio) {
             if (portNum == 1 || portNum == 32) { // TEXT or REPLY
                 printL(F("Text")); Serial.print('\"');
                 for(size_t i=0; i<sub_rem; i++) {
-                    char c = sub_p[i];
-                    if (c >= 32 && c < 127) Serial.print(c); else Serial.print('.');
+                    uint8_t c = sub_p[i];
+                    if (c >= 32 && c < 127) {
+                        Serial.print((char)c);
+                    } else if (c >= 0x80) {
+                        // UTF-8
+                        Serial.print((char)c);
+                    } else {
+                        Serial.print('.');
+                    }
                 }
                 Serial.println('\"');
             } else if (portNum == 3) { // POSITION
