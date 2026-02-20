@@ -33,22 +33,32 @@ void processCommand(char* cmd) {
         char* key = cmd;
         char* val = separator + 1;
 
+        bool recognized = false;
+
         if (strcmp(key, "freq") == 0) {
             currentConfig.radio_frequency = fast_atof(val);
+            recognized = true;
         } else if (strcmp(key, "sf") == 0) {
             currentConfig.radio_spreadingFactor = (uint8_t)strtol(val, NULL, 10);
+            recognized = true;
         } else if (strcmp(key, "bw") == 0) {
             currentConfig.radio_bandwidth = fast_atof(val);
+            recognized = true;
         } else if (strcmp(key, "cr") == 0) {
             currentConfig.radio_codingRate = (uint8_t)strtol(val, NULL, 10);
+            recognized = true;
         } else if (strcmp(key, "sw") == 0) {
             currentConfig.radio_syncWord = (uint8_t)strtol(val, NULL, 0);
+            recognized = true;
         } else if (strcmp(key, "pre") == 0) {
             currentConfig.radio_preambleLength = (uint16_t)strtol(val, NULL, 10);
+            recognized = true;
         } else if (strcmp(key, "adc") == 0) {
             currentConfig.adc_multiplier = fast_atof(val);
+            recognized = true;
         } else if (strcmp(key, "batt") == 0) {
             currentConfig.battery_threshold = fast_atof(val);
+            recognized = true;
         } else if (strcmp(key, "key") == 0) {
             // Ожидаем HEX строку из 32 символов (16 байт)
             if (strlen(val) == 32) {
@@ -56,29 +66,40 @@ void processCommand(char* cmd) {
                     char tmp[3] = {val[i*2], val[i*2+1], '\0'};
                     currentConfig.aes_key[i] = (uint8_t)strtol(tmp, NULL, 16);
                 }
+                recognized = true;
             }
         } else if (strcmp(key, "log") == 0) {
             currentConfig.log_level = (uint8_t)strtol(val, NULL, 10);
-        }
-        Serial.print(F("Set ")); Serial.print(key);
-        Serial.print(F("="));
-        
-        // Выводим значение без использования Serial.print(float)
-        if (strcmp(key, "freq") == 0) {
-            printFixedPoint((int32_t)(currentConfig.radio_frequency * 1000), 1000, 3);
-        } else if (strcmp(key, "bw") == 0) {
-            printFixedPoint((int32_t)(currentConfig.radio_bandwidth * 10), 10, 1);
-        } else if (strcmp(key, "adc") == 0) {
-            printFixedPoint((int32_t)(currentConfig.adc_multiplier * 1000000), 1000000, 6);
-        } else if (strcmp(key, "batt") == 0) {
-            printFixedPoint((int32_t)(currentConfig.battery_threshold * 100), 100, 2);
-        } else if (strcmp(key, "key") == 0) {
-            Serial.print(F("REDACTED"));
-        } else {
-            Serial.print(val);
+            recognized = true;
+        } else if (strcmp(key, "dlrl") == 0) {
+            currentConfig.relay_delay = (int32_t)strtol(val, NULL, 10);
+            recognized = true;
         }
 
-        Serial.println(F(" OK"));
+        if (recognized) {
+            Serial.print(F("Set ")); Serial.print(key);
+            Serial.print(F("="));
+            
+            // Выводим значение без использования Serial.print(float)
+            if (strcmp(key, "freq") == 0) {
+                printFixedPoint((int32_t)(currentConfig.radio_frequency * 1000), 1000, 3);
+            } else if (strcmp(key, "bw") == 0) {
+                printFixedPoint((int32_t)(currentConfig.radio_bandwidth * 10), 10, 1);
+            } else if (strcmp(key, "adc") == 0) {
+                printFixedPoint((int32_t)(currentConfig.adc_multiplier * 1000000), 1000000, 6);
+            } else if (strcmp(key, "batt") == 0) {
+                printFixedPoint((int32_t)(currentConfig.battery_threshold * 100), 100, 2);
+            } else if (strcmp(key, "key") == 0) {
+                Serial.print(F("REDACTED"));
+            } else {
+                Serial.print(val);
+            }
+
+            Serial.println(F(" OK"));
+        } else {
+            Serial.print(F("ERROR: unknown key "));
+            Serial.println(key);
+        }
     } else {
         // Одиночные команды (чтение значения по ключу или системные команды)
         bool handled = false;
@@ -123,6 +144,10 @@ void processCommand(char* cmd) {
             Serial.print(key); Serial.print(F("="));
             Serial.print(currentConfig.log_level);
             handled = true;
+        } else if (strcmp(key, "dlrl") == 0) {
+            Serial.print(key); Serial.print(F("="));
+            Serial.print(currentConfig.relay_delay);
+            handled = true;
         }
 
         if (handled) {
@@ -133,6 +158,9 @@ void processCommand(char* cmd) {
                 saveConfig(currentConfig);
                 delay(500);
                 NVIC_SystemReset();
+            } else {
+                Serial.print(F("ERROR: unknown command "));
+                Serial.println(cmd);
             }
         }
     }

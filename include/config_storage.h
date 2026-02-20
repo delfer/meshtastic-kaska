@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 #define CONFIG_MAGIC 0x4B41534B // "KASK" in hex
-#define CONFIG_VERSION 3
+#define CONFIG_VERSION 4
 
 struct DeviceConfig {
     uint32_t magic;
@@ -27,6 +27,9 @@ struct DeviceConfig {
 
     // Logging level: 0 - none, 1 - packets, 2 - insight
     uint8_t log_level;
+    
+    // Relay delay: -1 = disabled, 0+ = delay in ms (packet is retransmitted without modification) (UART command: dlrl)
+    int32_t relay_delay;
     
     uint16_t checksum;
 };

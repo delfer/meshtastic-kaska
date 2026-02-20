@@ -252,6 +252,45 @@ void loop() {
                 printPacketInsight(buffer, len, radio, header);
             }
 #endif
+            
+            // Логика ретрансляции
+            if (currentConfig.relay_delay >= 0) {
+                if (currentConfig.log_level >= 1) {
+                    Serial.print(F("Relay: Waiting "));
+                    Serial.print(currentConfig.relay_delay);
+                    Serial.println(F("ms..."));
+                }
+                
+                delay(currentConfig.relay_delay);
+                
+                // Проверяем эфир перед отправкой
+                // scanChannel возвращает RADIOLIB_CHANNEL_FREE если эфир чист
+                int scanState = radio.scanChannel();
+                if (scanState != RADIOLIB_CHANNEL_FREE) {
+                    if (currentConfig.log_level >= 1) {
+                        Serial.println(F("Relay: Channel busy, waiting..."));
+                    }
+                    int attempts = 0;
+                    const int maxAttempts = 100; // максимум 100 попыток (~1 секунда)
+                    while (scanState != RADIOLIB_CHANNEL_FREE && attempts < maxAttempts) {
+                        delay(10);
+                        scanState = radio.scanChannel();
+                        attempts++;
+                    }
+                }
+                if (scanState == RADIOLIB_CHANNEL_FREE) {
+                    if (currentConfig.log_level >= 1) {
+                        Serial.println(F("Relay: Sending packet (no modification)"));
+                    }
+                    radio.transmit(buffer, len);
+                    // После передачи возвращаемся в режим приема
+                    radio.startReceive();
+                } else {
+                    if (currentConfig.log_level >= 1) {
+                        Serial.println(F("Relay: Channel still busy after waiting, skipping."));
+                    }
+                }
+            }
         } else {
             if (currentConfig.log_level >= 1) {
                 Serial.print(F("\nDuplicate packet from 0x"));
