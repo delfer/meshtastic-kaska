@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <Wire.h>
 #include <STM32LowPower.h>
 #include <RadioLib.h>
 
@@ -7,6 +6,7 @@
 #define ENABLE_PACKET_DEBUG
 
 #ifdef ENABLE_I2C_SCANNER
+#include <Wire.h>
 #include "i2c_scanner.h"
 TwoWire Wire2(PB14, PB13); // SDA, SCL
 #endif
