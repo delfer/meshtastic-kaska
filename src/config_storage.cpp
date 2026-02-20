@@ -10,6 +10,10 @@ const DeviceConfig DEFAULT_CONFIG = {
     .radio_codingRate = 5,
     .radio_syncWord = 0x2B,
     .radio_preambleLength = 16,
+    .adc_multiplier = 0.00175262f,
+    .battery_threshold = 3.5f,
+    .aes_key = {0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59,
+                0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01},
     .checksum = 0
 };
 
