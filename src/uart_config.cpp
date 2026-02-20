@@ -132,8 +132,6 @@ void processCommand(char* cmd) {
     }
 }
 
-void uartConfigInit() {}
-
 void uartConfigLoop() {
     while (Serial.available()) {
         char c = Serial.read();

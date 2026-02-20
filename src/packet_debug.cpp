@@ -68,7 +68,7 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio, const MeshHe
     printL(F("Relay"), true);  Serial.println(header.relayNode, HEX);
 
     printL(F("FreqErr")); Serial.print(radio.getFrequencyError()); Serial.println(F("Hz"));
-    printL(F("Pld Size")); Serial.print(len - 16);
+    printL(F("Pld Size")); Serial.print(len - 16); Serial.println();
     printL(F("RSSI/SNR")); Serial.print(radio.getRSSI()); Serial.print(F("/")); Serial.println(radio.getSNR());
 
     // Decryption setup

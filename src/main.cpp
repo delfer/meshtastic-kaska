@@ -59,7 +59,7 @@ float readBatteryVoltage() {
 void setup() {
   Serial.setTx(PA9);
   Serial.setRx(PA10);
-  Serial.begin(115200);
+  Serial.begin(57600);
   
   pinMode(LED_PIN, OUTPUT);
   pinMode(BAT_PIN, INPUT_ANALOG);
@@ -69,6 +69,8 @@ void setup() {
   LowPower.begin();
   // Настройка пробуждения по прерыванию на DIO0 (RISING)
   LowPower.attachInterruptWakeup(LORA_DIO0, NULL, RISING, DEEP_SLEEP_MODE);
+  // Настройка пробуждения по UART
+  LowPower.enableWakeupFrom(&Serial, NULL);
 
   // Включить тактирование DBGMCU (обязательно для L0!)
   // (Потребление вырастет до ~300 мкА, но SWD не отвалится)
@@ -210,11 +212,9 @@ void loop() {
   Serial.flush();
   digitalWrite(LED_PIN, LOW);
   
-  // Разрешаем просыпание по RX пину (PA10)
-  // LowPower.attachInterruptWakeup(PA10, NULL, FALLING, DEEP_SLEEP_MODE);
-  
-  // LowPower.deepSleep(60000); // Временно отключено для диагностики
-  delay(10);
+  // Переходим в режим Stop (deepSleep).
+  // Контроллер проснется либо по прерыванию от LoRa (DIO0), либо по входящим данным UART (Hardware Wakeup).
+  LowPower.deepSleep(60000);
 
   if (digitalRead(LORA_DIO0) == HIGH) {
     digitalWrite(LED_PIN, HIGH);
