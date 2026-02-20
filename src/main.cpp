@@ -16,6 +16,7 @@ TwoWire Wire2(PB14, PB13); // SDA, SCL
 #endif
 #include "packet_cache.h"
 #include "mesh_utils.h"
+#include "config_storage.h"
 
 #define LED_PIN PA15
 
@@ -31,6 +32,7 @@ TwoWire Wire2(PB14, PB13); // SDA, SCL
 #define BAT_PIN PA3
 
 SX1276 radio = new Module(LORA_NSS, LORA_DIO0, LORA_RST, LORA_DIO1);
+DeviceConfig currentConfig;
 
 float readBatteryVoltage() {
   // Теперь АЦП успевает заряжаться благодаря ADC_SAMPLINGTIME в platformio.ini
@@ -78,6 +80,13 @@ void setup() {
 #endif
 
   Serial.println(F("Booting..."));
+
+  // Загрузка конфигурации из EEPROM
+  if (!loadConfig(currentConfig)) {
+    Serial.println(F("No valid config found, saving defaults..."));
+    saveConfig(currentConfig);
+  }
+
   // Инициализация кэша пакетов
   packetCacheInit();
   Serial.println(F("Cache init done."));
@@ -88,21 +97,29 @@ void setup() {
   SPI.setMISO(LORA_MISO);
   SPI.setMOSI(LORA_MOSI);
   SPI.begin();
-  // 1. Инициализация с базовыми параметрами
-  // Частота: 869.075, Полоса: 250.0, SF: 11, CR: 5 (Long Fast)
-  int state = radio.begin(869.082f, 250.0f, 11, 5);
+  // 1. Инициализация с параметрами из конфигурации
+  int state = radio.begin(currentConfig.radio_frequency,
+                          currentConfig.radio_bandwidth,
+                          currentConfig.radio_spreadingFactor,
+                          currentConfig.radio_codingRate);
   if (state == RADIOLIB_ERR_NONE) {
-    // 2. Устанавливаем специфичный для Meshtastic Sync Word
-    state = radio.setSyncWord(0x2B);
+    // 2. Устанавливаем Sync Word из конфигурации
+    state = radio.setSyncWord(currentConfig.radio_syncWord);
     
-    // 3. Устанавливаем длину преамбулы (у Meshtastic это 16)
-    state = radio.setPreambleLength(16);
+    // 3. Устанавливаем длину преамбулы из конфигурации
+    state = radio.setPreambleLength(currentConfig.radio_preambleLength);
 
     // 4. Опционально: CRC должен быть включен (в RadioLib по умолчанию включен)
     state = radio.setCRC(true);
 
     if (state == RADIOLIB_ERR_NONE) {
-        Serial.println(F("Meshtastic configuration applied!"));
+        Serial.println(F("LoRa configuration applied!"));
+        Serial.print(F("Freq: ")); Serial.println(currentConfig.radio_frequency, 3);
+        Serial.print(F("BW: ")); Serial.println(currentConfig.radio_bandwidth, 1);
+        Serial.print(F("SF: ")); Serial.println(currentConfig.radio_spreadingFactor);
+        Serial.print(F("CR: ")); Serial.println(currentConfig.radio_codingRate);
+        Serial.print(F("Sync: 0x")); Serial.println(currentConfig.radio_syncWord, HEX);
+        Serial.print(F("Preamble: ")); Serial.println(currentConfig.radio_preambleLength);
     }
     Serial.println(F("success!"));
   } else {
