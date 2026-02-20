@@ -17,6 +17,7 @@ TwoWire Wire2(PB14, PB13); // SDA, SCL
 #include "packet_cache.h"
 #include "mesh_utils.h"
 #include "config_storage.h"
+#include "uart_config.h"
 
 #define LED_PIN PA15
 
@@ -114,8 +115,8 @@ void setup() {
 
     if (state == RADIOLIB_ERR_NONE) {
         Serial.println(F("LoRa configuration applied!"));
-        Serial.print(F("Freq: ")); Serial.println(currentConfig.radio_frequency, 3);
-        Serial.print(F("BW: ")); Serial.println(currentConfig.radio_bandwidth, 1);
+        Serial.print(F("Freq: ")); printFixedPoint((int32_t)(currentConfig.radio_frequency * 1000), 1000, 3); Serial.println();
+        Serial.print(F("BW: ")); printFixedPoint((int32_t)(currentConfig.radio_bandwidth * 10), 10, 1); Serial.println();
         Serial.print(F("SF: ")); Serial.println(currentConfig.radio_spreadingFactor);
         Serial.print(F("CR: ")); Serial.println(currentConfig.radio_codingRate);
         Serial.print(F("Sync: 0x")); Serial.println(currentConfig.radio_syncWord, HEX);
@@ -167,7 +168,7 @@ void loop() {
     lastBatCheck = millis();
     float vbat = readBatteryVoltage();
     Serial.print(F("Battery Voltage: "));
-    Serial.print(vbat);
+    printFixedPoint((int32_t)(vbat * 100), 100, 2);
     Serial.println(F(" V"));
 
     if (vbat < currentConfig.battery_threshold) {
@@ -189,7 +190,7 @@ void loop() {
         // После просыпания проверяем напряжение
         vbat = readBatteryVoltage();
         Serial.print(F("Check voltage in shutdown: "));
-        Serial.print(vbat);
+        printFixedPoint((int32_t)(vbat * 100), 100, 2);
         Serial.println(F(" V"));
         
         // Если напряжение поднялось выше порога + 0.1В гистерезиса, перезагружаемся
@@ -202,10 +203,18 @@ void loop() {
     }
   }
 
-  // Уходим в сон до прерывания на DIO0
+  // Проверка команд UART
+  uartConfigLoop();
+
+  // Уходим в сон до прерывания на DIO0 или появления данных в Serial
   Serial.flush();
   digitalWrite(LED_PIN, LOW);
-  LowPower.deepSleep(60000); //to have chance to flash # while true; do st-flash erase && break ; done
+  
+  // Разрешаем просыпание по RX пину (PA10)
+  // LowPower.attachInterruptWakeup(PA10, NULL, FALLING, DEEP_SLEEP_MODE);
+  
+  // LowPower.deepSleep(60000); // Временно отключено для диагностики
+  delay(10);
 
   if (digitalRead(LORA_DIO0) == HIGH) {
     digitalWrite(LED_PIN, HIGH);
