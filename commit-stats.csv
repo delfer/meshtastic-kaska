@@ -1,0 +1,41 @@
+date,commit_hash,commit_subject,branch,ram_used,ram_total,ram_percent,flash_used,flash_total,flash_percent,build_status,elapsed_sec
+2026-02-14,2ef7de0,"Blinking LED PA_15 and PA_9",main,1168,8192,14.3,9400,65536,14.3,success,5
+2026-02-14,f50759d,"Fixed Arduino defenitions with board = genericSTM32L051C8Tx",main,1224,8192,14.9,11428,65536,17.4,success,4
+2026-02-14,aa476f2,"Add serial debug",main,1224,8192,14.9,15592,65536,23.8,success,4
+2026-02-14,cdd677b,"Serial1 fix",main,1224,8192,14.9,15592,65536,23.8,success,4
+2026-02-14,455e9ad,"Add i2c scanner",main,1712,8192,20.9,26036,65536,39.7,success,1
+2026-02-14,d5993dc,"I2c scanner refactor",main,1460,8192,17.8,20512,65536,31.3,success,4
+2026-02-14,02d7806,"Deep sleep",main,1604,8192,19.6,27736,65536,42.3,success,8
+2026-02-15,8863c3c,"Add README.md",main,1604,8192,19.6,27736,65536,42.3,success,1
+2026-02-15,5915c6a,"Add LoRa Meshtastic listen",main,1920,8192,23.4,53432,65536,81.5,success,13
+2026-02-15,b3b9c5f,"Print Meshtastic header packet info",main,1920,8192,23.4,53996,65536,82.4,success,2
+2026-02-15,e66b99a,"Deep sleep between packet",main,2064,8192,25.2,61452,65536,93.8,success,2
+2026-02-18,b2922cf,"Add meshtastic-firmware submodule at tag v2.7.15.567b8ea",main,2064,8192,25.2,61452,65536,93.8,success,2
+2026-02-18,1fbc804,"feat(debug): extract packet insight to separate module",main,2064,8192,25.2,61508,65536,93.9,success,10
+2026-02-18,42487db,"feat(debug): improve Meshtastic packet insight with detailed field breakdown",main,2064,8192,25.2,61668,65536,94.1,success,2
+2026-02-18,3ba59b5,"feat: enable DBGMCU in stop mode for STM32L0",main,2064,8192,25.2,61704,65536,94.2,success,2
+2026-02-19,1199e78,"build: add meshtastic-firmware include paths",main,2064,8192,25.2,61704,65536,94.2,success,11
+2026-02-19,fb2f622,"feat: implement meshtastic payload decryption and enhanced packet debug",main,2064,8192,25.2,62800,65536,95.8,success,2
+2026-02-19,0487b93,"feat(packet_debug): implement custom AES-CTR decryption for Meshtastic packets",main,2064,8192,25.2,63140,65536,96.3,success,9
+2026-02-19,5b4d7ea,"feat(packet_debug): improve protobuf parsing and port mapping",main,2064,8192,25.2,63576,65536,97.0,success,2
+2026-02-19,7ec2626,"feat(packet_debug): implement robust protobuf parsing for packet insight",main,2064,8192,25.2,63872,65536,97.5,success,2
+2026-02-19,84fd8b8,"build: optimize binary size and enable LTO",main,2296,8192,28.0,55264,65536,84.3,success,10
+2026-02-19,7dc1be5,"refactor: replace float printing with fixed-point to reduce bloat",main,2296,8192,28.0,55856,65536,85.2,success,3
+2026-02-19,c2fa785,"build: optimize build flags and add dependencies in platformio.ini",main,2260,8192,27.6,55640,65536,84.9,success,11
+2026-02-19,056ac93,"build: optimize RadioLib flash/ram usage by excluding unused modules",main,1980,8192,24.2,55060,65536,84.0,success,10
+2026-02-19,e56baf7,"build: optimize binary size and stack usage in platformio.ini",main,1980,8192,24.2,55060,65536,84.0,success,10
+2026-02-19,9a8ee7d,"refactor: reduce stack usage and fix float parsing in packet debug",main,2396,8192,29.2,55032,65536,84.0,success,4
+2026-02-19,39dca9f,"feat: enhance packet insight debugging output",main,2396,8192,29.2,55640,65536,84.9,success,4
+2026-02-19,daf9a21,"refactor(debug): improve packet debug output formatting",main,2396,8192,29.2,55424,65536,84.6,success,3
+2026-02-19,e2add77,"feat(debug): add basic UTF-8 support in packet output",main,2396,8192,29.2,55436,65536,84.6,success,3
+2026-02-19,5d26636,"docs: add battery pin information to README",main,2260,8192,27.6,55640,65536,84.9,success,11
+2026-02-19,2c74ff2,"build: optimize binary size and radio configurations",main,1980,8192,24.2,55060,65536,84.0,success,10
+2026-02-19,1469d8c,"feat: implement battery voltage reading",main,2252,8192,27.5,57240,65536,87.3,success,4
+2026-02-19,4672c72,"refactor: improve packet debug output formatting",main,2508,8192,30.6,57632,65536,87.9,success,4
+2026-02-19,01edea4,"fix(packet_debug): correct MeshPacket header parsing and hop limit logic",main,2508,8192,30.6,57632,65536,87.9,success,4
+2026-02-19,12b4dd4,"feat(power): add critical battery voltage protection and deep sleep",main,2408,8192,29.4,57884,65536,88.3,success,3
+2026-02-19,8174195,"feat(hw): optimize battery voltage reading and ADC sampling",main,2408,8192,29.4,57828,65536,88.2,success,10
+2026-02-19,f812e2a,"fix(debug): correct hop limit and hop left labels in packet insight",main,2408,8192,29.4,57828,65536,88.2,success,3
+2026-02-19,d0a7c3f,"feat: add packet caching and mesh utility functions",main,2408,8192,29.4,57828,65536,88.2,success,10
+2026-02-19,85802b4,"feat: integrate packet cache and duplicate filtering into main loop",main,2528,8192,30.9,58420,65536,89.1,success,3
+2026-02-19,e942133,"feat(mesh): extend MeshHeader with hop flags and refactor decryption",main,2528,8192,30.9,58336,65536,89.0,success,4
