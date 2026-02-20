@@ -46,7 +46,7 @@ float readBatteryVoltage() {
   // Фактически при 4.01В на входе АЦП выдает raw=2288.
   // Это означает, что реальный коэффициент составляет 4.01 / 2288 ≈ 0.00175262.
   // Разница может быть вызвана отклонением Vref от 2.5В или погрешностью резисторов.
-  float voltage = raw * 0.00175262f;
+  float voltage = raw * currentConfig.adc_multiplier;
 
   Serial.print(F("\nADC Raw: "));
   Serial.print(raw);
@@ -170,7 +170,7 @@ void loop() {
     Serial.print(vbat);
     Serial.println(F(" V"));
 
-    if (vbat < 3.5f) {
+    if (vbat < currentConfig.battery_threshold) {
       Serial.println(F("!!! CRITICAL BATTERY VOLTAGE !!!"));
       Serial.println(F("Shutting down radio and entering deep sleep..."));
       Serial.flush();
@@ -192,8 +192,8 @@ void loop() {
         Serial.print(vbat);
         Serial.println(F(" V"));
         
-        // Если напряжение поднялось выше 3.6В (небольшой гистерезис), перезагружаемся
-        if (vbat > 3.6f) {
+        // Если напряжение поднялось выше порога + 0.1В гистерезиса, перезагружаемся
+        if (vbat > currentConfig.battery_threshold + 0.1f) {
           Serial.println(F("Voltage recovered. Restarting..."));
           Serial.flush();
           HAL_NVIC_SystemReset();
