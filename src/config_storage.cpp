@@ -32,15 +32,39 @@ uint16_t calculateChecksum(const DeviceConfig& cfg) {
 bool loadConfig(DeviceConfig& cfg) {
     EEPROM.get(0, cfg);
     
+    if (DEFAULT_CONFIG.log_level >= 1) {
+        Serial.print(F("Cfg: m=0x"));
+        Serial.print(cfg.magic, HEX);
+        Serial.print(F(" v="));
+        Serial.print(cfg.version);
+        Serial.print(F(" cs=0x"));
+        Serial.print(cfg.checksum, HEX);
+        Serial.print(F(" sz="));
+        Serial.print(sizeof(DeviceConfig));
+        Serial.println();
+    }
+    
     if (cfg.magic != CONFIG_MAGIC || cfg.version != CONFIG_VERSION) {
-        if (DEFAULT_CONFIG.log_level >= 1) Serial.println(F("Config: Magic or Version mismatch. Using defaults."));
+        if (DEFAULT_CONFIG.log_level >= 1) {
+            Serial.println(F("Config: Magic or Version mismatch. Using defaults."));
+            Serial.print(F("Exp m=0x"));
+            Serial.print(CONFIG_MAGIC, HEX);
+            Serial.print(F(" v="));
+            Serial.println(CONFIG_VERSION);
+        }
         cfg = DEFAULT_CONFIG;
         return false;
     }
     
     uint16_t expectedChecksum = calculateChecksum(cfg);
     if (cfg.checksum != expectedChecksum) {
-        if (DEFAULT_CONFIG.log_level >= 1) Serial.println(F("Config: Checksum mismatch. Using defaults."));
+        if (DEFAULT_CONFIG.log_level >= 1) {
+            Serial.println(F("Config: Checksum mismatch. Using defaults."));
+            Serial.print(F("Exp cs=0x"));
+            Serial.print(expectedChecksum, HEX);
+            Serial.print(F(" got=0x"));
+            Serial.println(cfg.checksum, HEX);
+        }
         cfg = DEFAULT_CONFIG;
         return false;
     }
@@ -53,6 +77,15 @@ void saveConfig(DeviceConfig& cfg) {
     cfg.magic = CONFIG_MAGIC;
     cfg.version = CONFIG_VERSION;
     cfg.checksum = calculateChecksum(cfg);
+    if (cfg.log_level >= 1) {
+        Serial.print(F("Cfg sv: m=0x"));
+        Serial.print(cfg.magic, HEX);
+        Serial.print(F(" v="));
+        Serial.print(cfg.version);
+        Serial.print(F(" cs=0x"));
+        Serial.print(cfg.checksum, HEX);
+        Serial.println();
+    }
     EEPROM.put(0, cfg);
     if (cfg.log_level >= 1) Serial.println(F("Config: Saved to EEPROM."));
 }

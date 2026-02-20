@@ -6,6 +6,7 @@
 #define CONFIG_MAGIC 0x4B41534B // "KASK" in hex
 #define CONFIG_VERSION 4
 
+#pragma pack(push, 1)
 struct DeviceConfig {
     uint32_t magic;
     uint8_t version;
@@ -33,6 +34,7 @@ struct DeviceConfig {
     
     uint16_t checksum;
 };
+#pragma pack(pop)
 
 // Дефолтные значения
 extern const DeviceConfig DEFAULT_CONFIG;
