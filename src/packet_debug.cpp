@@ -1,5 +1,6 @@
 #include "packet_debug.h"
 #include "mesh_utils.h"
+#include "config_storage.h"
 
 /**
  * @brief Печатает число с фиксированной точкой без использования float в Serial.print.
@@ -71,8 +72,9 @@ void printPacketInsight(uint8_t* buffer, size_t len, SX1276& radio, const MeshHe
     printL(F("RSSI/SNR")); Serial.print(radio.getRSSI()); Serial.print(F("/")); Serial.println(radio.getSNR());
 
     // Decryption setup
-    uint8_t psk[16] = {0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59,
-                       0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01};
+    uint8_t psk[16];
+    memcpy(psk, currentConfig.aes_key, 16);
+
     if (header.chanHash != 0x08 && header.chanHash != 0x00) {
         psk[15] = (uint8_t)(0x01 + (header.chanHash - 0x08));
     }
