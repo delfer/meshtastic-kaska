@@ -49,9 +49,11 @@ float readBatteryVoltage() {
   // Разница может быть вызвана отклонением Vref от 2.5В или погрешностью резисторов.
   float voltage = raw * currentConfig.adc_multiplier;
 
-  Serial.print(F("\nADC Raw: "));
-  Serial.print(raw);
-  Serial.print(F(" -> "));
+  if (currentConfig.log_level >= 1) {
+    Serial.print(F("\nADC Raw: "));
+    Serial.print(raw);
+    Serial.print(F(" -> "));
+  }
 
   return voltage;
 }
@@ -92,10 +94,10 @@ void setup() {
 
   // Инициализация кэша пакетов
   packetCacheInit();
-  Serial.println(F("Cache init done."));
+  if (currentConfig.log_level >= 1) Serial.println(F("Cache init done."));
 
   // LoRa initialization
-  Serial.print(F("[RadioLib] Initializing ... "));
+  if (currentConfig.log_level >= 1) Serial.print(F("[RadioLib] Initializing ... "));
   SPI.setSCLK(LORA_SCK);
   SPI.setMISO(LORA_MISO);
   SPI.setMOSI(LORA_MOSI);
@@ -116,15 +118,17 @@ void setup() {
     state = radio.setCRC(true);
 
     if (state == RADIOLIB_ERR_NONE) {
-        Serial.println(F("LoRa configuration applied!"));
-        Serial.print(F("Freq: ")); printFixedPoint((int32_t)(currentConfig.radio_frequency * 1000), 1000, 3); Serial.println();
-        Serial.print(F("BW: ")); printFixedPoint((int32_t)(currentConfig.radio_bandwidth * 10), 10, 1); Serial.println();
-        Serial.print(F("SF: ")); Serial.println(currentConfig.radio_spreadingFactor);
-        Serial.print(F("CR: ")); Serial.println(currentConfig.radio_codingRate);
-        Serial.print(F("Sync: 0x")); Serial.println(currentConfig.radio_syncWord, HEX);
-        Serial.print(F("Preamble: ")); Serial.println(currentConfig.radio_preambleLength);
+        if (currentConfig.log_level >= 1) {
+            Serial.println(F("LoRa configuration applied!"));
+            Serial.print(F("Freq: ")); printFixedPoint((int32_t)(currentConfig.radio_frequency * 1000), 1000, 3); Serial.println();
+            Serial.print(F("BW: ")); printFixedPoint((int32_t)(currentConfig.radio_bandwidth * 10), 10, 1); Serial.println();
+            Serial.print(F("SF: ")); Serial.println(currentConfig.radio_spreadingFactor);
+            Serial.print(F("CR: ")); Serial.println(currentConfig.radio_codingRate);
+            Serial.print(F("Sync: 0x")); Serial.println(currentConfig.radio_syncWord, HEX);
+            Serial.print(F("Preamble: ")); Serial.println(currentConfig.radio_preambleLength);
+        }
     }
-    Serial.println(F("success!"));
+    if (currentConfig.log_level >= 1) Serial.println(F("success!"));
   } else {
     Serial.print(F("failed, code "));
     Serial.println(state);
@@ -133,8 +137,10 @@ void setup() {
 
   // Проверяем корректность
   byte version = radio.getChipVersion();
-  Serial.print(F("Chip version: 0x"));
-  Serial.println(version, HEX);
+  if (currentConfig.log_level >= 1) {
+    Serial.print(F("Chip version: 0x"));
+    Serial.println(version, HEX);
+  }
 
   if (version != 0x12) {
     Serial.println(F("ОШИБКА: Чип не отвечает или это не SX1276!"));
@@ -144,10 +150,10 @@ void setup() {
   // radio.setCodingRate(5); // Уже задано в begin как 4/5 (значение 5)
 
   // Переводим в режим приема
-  Serial.print(F("[RadioLib] Starting to listen ... "));
+  if (currentConfig.log_level >= 1) Serial.print(F("[RadioLib] Starting to listen ... "));
   state = radio.startReceive();
   if (state == RADIOLIB_ERR_NONE) {
-    Serial.println(F("success!"));
+    if (currentConfig.log_level >= 1) Serial.println(F("success!"));
   } else {
     Serial.print(F("failed, code "));
     Serial.println(state);
@@ -155,12 +161,14 @@ void setup() {
   }
 
   // Print debug info
-  Serial.println(F("--- RadioLib Info ---"));
-  Serial.println(F("Radio Chip: SX1276"));
-  Serial.print(F("NSS Pin: ")); Serial.println(LORA_NSS);
-  Serial.print(F("DIO0 Pin: ")); Serial.println(LORA_DIO0);
-  Serial.print(F("RST Pin: ")); Serial.println(LORA_RST);
-  Serial.println(F("---------------------"));
+  if (currentConfig.log_level >= 1) {
+    Serial.println(F("--- RadioLib Info ---"));
+    Serial.println(F("Radio Chip: SX1276"));
+    Serial.print(F("NSS Pin: ")); Serial.println(LORA_NSS);
+    Serial.print(F("DIO0 Pin: ")); Serial.println(LORA_DIO0);
+    Serial.print(F("RST Pin: ")); Serial.println(LORA_RST);
+    Serial.println(F("---------------------"));
+  }
 }
 
 void loop() {
@@ -169,9 +177,11 @@ void loop() {
   if (millis() - lastBatCheck > 10000 || lastBatCheck == 0) {
     lastBatCheck = millis();
     float vbat = readBatteryVoltage();
-    Serial.print(F("Battery Voltage: "));
-    printFixedPoint((int32_t)(vbat * 100), 100, 2);
-    Serial.println(F(" V"));
+    if (currentConfig.log_level >= 1) {
+        Serial.print(F("Battery Voltage: "));
+        printFixedPoint((int32_t)(vbat * 100), 100, 2);
+        Serial.println(F(" V"));
+    }
 
     if (vbat < currentConfig.battery_threshold) {
       Serial.println(F("!!! CRITICAL BATTERY VOLTAGE !!!"));
@@ -230,22 +240,28 @@ void loop() {
         parseMeshHeader(buffer, &header);
 
         if (addPacketToCache(header.from, header.pktId)) {
-            Serial.print(F("\nNew packet from 0x"));
-            Serial.print(header.from, HEX);
-            Serial.print(F(" with ID 0x"));
-            Serial.println(header.pktId, HEX);
+            if (currentConfig.log_level >= 1) {
+                Serial.print(F("\nNew packet from 0x"));
+                Serial.print(header.from, HEX);
+                Serial.print(F(" with ID 0x"));
+                Serial.println(header.pktId, HEX);
+            }
             
 #ifdef ENABLE_PACKET_DEBUG
-            printPacketInsight(buffer, len, radio, header);
+            if (currentConfig.log_level >= 2) {
+                printPacketInsight(buffer, len, radio, header);
+            }
 #endif
         } else {
-            Serial.print(F("\nDuplicate packet from 0x"));
-            Serial.print(header.from, HEX);
-            Serial.print(F(" with ID 0x"));
-            Serial.println(header.pktId, HEX);
+            if (currentConfig.log_level >= 1) {
+                Serial.print(F("\nDuplicate packet from 0x"));
+                Serial.print(header.from, HEX);
+                Serial.print(F(" with ID 0x"));
+                Serial.println(header.pktId, HEX);
+            }
         }
     } else if (state == RADIOLIB_ERR_NONE) {
-        Serial.println(F("Packet too short for Meshtastic header"));
+        if (currentConfig.log_level >= 1) Serial.println(F("Packet too short for Meshtastic header"));
     }
     
     // Очищаем прерывания и переходим в режим ожидания нового пакета

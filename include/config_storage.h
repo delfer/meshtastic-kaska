@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 #define CONFIG_MAGIC 0x4B41534B // "KASK" in hex
-#define CONFIG_VERSION 2
+#define CONFIG_VERSION 3
 
 struct DeviceConfig {
     uint32_t magic;
@@ -24,6 +24,9 @@ struct DeviceConfig {
 
     // Security parameters
     uint8_t aes_key[16];
+
+    // Logging level: 0 - none, 1 - packets, 2 - insight
+    uint8_t log_level;
     
     uint16_t checksum;
 };

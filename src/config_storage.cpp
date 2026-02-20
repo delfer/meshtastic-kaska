@@ -14,6 +14,7 @@ const DeviceConfig DEFAULT_CONFIG = {
     .battery_threshold = 3.5f,
     .aes_key = {0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59,
                 0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01},
+    .log_level = 2, // Default to highest for debugging
     .checksum = 0
 };
 
@@ -31,19 +32,19 @@ bool loadConfig(DeviceConfig& cfg) {
     EEPROM.get(0, cfg);
     
     if (cfg.magic != CONFIG_MAGIC || cfg.version != CONFIG_VERSION) {
-        Serial.println(F("Config: Magic or Version mismatch. Using defaults."));
+        if (DEFAULT_CONFIG.log_level >= 1) Serial.println(F("Config: Magic or Version mismatch. Using defaults."));
         cfg = DEFAULT_CONFIG;
         return false;
     }
     
     uint16_t expectedChecksum = calculateChecksum(cfg);
     if (cfg.checksum != expectedChecksum) {
-        Serial.println(F("Config: Checksum mismatch. Using defaults."));
+        if (DEFAULT_CONFIG.log_level >= 1) Serial.println(F("Config: Checksum mismatch. Using defaults."));
         cfg = DEFAULT_CONFIG;
         return false;
     }
     
-    Serial.println(F("Config: Loaded successfully from EEPROM."));
+    if (cfg.log_level >= 1) Serial.println(F("Config: Loaded successfully from EEPROM."));
     return true;
 }
 
@@ -52,5 +53,5 @@ void saveConfig(DeviceConfig& cfg) {
     cfg.version = CONFIG_VERSION;
     cfg.checksum = calculateChecksum(cfg);
     EEPROM.put(0, cfg);
-    Serial.println(F("Config: Saved to EEPROM."));
+    if (cfg.log_level >= 1) Serial.println(F("Config: Saved to EEPROM."));
 }

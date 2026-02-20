@@ -57,6 +57,8 @@ void processCommand(char* cmd) {
                     currentConfig.aes_key[i] = (uint8_t)strtol(tmp, NULL, 16);
                 }
             }
+        } else if (strcmp(key, "log") == 0) {
+            currentConfig.log_level = (uint8_t)strtol(val, NULL, 10);
         }
         Serial.print(F("Set ")); Serial.print(key);
         Serial.print(F("="));
@@ -116,6 +118,10 @@ void processCommand(char* cmd) {
             handled = true;
         } else if (strcmp(key, "key") == 0) {
             Serial.print(key); Serial.print(F("=REDACTED"));
+            handled = true;
+        } else if (strcmp(key, "log") == 0) {
+            Serial.print(key); Serial.print(F("="));
+            Serial.print(currentConfig.log_level);
             handled = true;
         }
 
